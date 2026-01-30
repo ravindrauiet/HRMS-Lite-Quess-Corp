@@ -1,0 +1,15 @@
+# Python / Backend
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# Environment Variables
+.env
