@@ -24,6 +24,10 @@ def mark_attendance(attendance: schemas.AttendanceCreate, db: Session = Depends(
          raise HTTPException(status_code=404, detail="Employee not found")
     return crud.create_attendance(db=db, attendance=attendance)
 
+@router.get("/", response_model=List[schemas.Attendance])
+def read_all_attendance(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.get_all_attendance(db, skip=skip, limit=limit)
+
 @router.get("/{employee_id}", response_model=List[schemas.Attendance])
 def read_attendance(employee_id: int, db: Session = Depends(get_db)):
     return crud.get_attendance(db, employee_id=employee_id)
