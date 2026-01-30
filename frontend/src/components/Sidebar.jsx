@@ -70,13 +70,11 @@ const Sidebar = () => {
             {/* User Profile Section */}
             <div className="p-4 border-t border-gray-100">
                 <div className="bg-gray-50 p-3 rounded-xl flex items-center gap-3">
-                    <img
-                        src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                        alt="User"
-                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
-                    />
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm border-2 border-white shadow-sm">
+                        RJ
+                    </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">Robert Chen</p>
+                        <p className="text-sm font-semibold text-gray-900 truncate">Ravindra Jha</p>
                         <p className="text-xs text-gray-500 truncate">System Admin</p>
                     </div>
                 </div>

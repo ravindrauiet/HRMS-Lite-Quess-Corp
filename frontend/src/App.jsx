@@ -6,6 +6,8 @@ import EmployeeList from './pages/EmployeeList';
 import AddEmployee from './pages/AddEmployee';
 import Attendance from './pages/Attendance';
 
+import Settings from './pages/Settings';
+
 function App() {
   return (
     <Router>
@@ -19,6 +21,7 @@ function App() {
               <Route path="/employees" element={<EmployeeList />} />
               <Route path="/add-employee" element={<AddEmployee />} />
               <Route path="/attendance" element={<Attendance />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>
         </div>

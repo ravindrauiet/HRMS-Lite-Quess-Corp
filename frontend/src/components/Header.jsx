@@ -18,10 +18,6 @@ const Header = () => {
 
                 {/* Actions */}
                 <div className="flex items-center gap-3">
-                    <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors relative">
-                        <Bell className="w-5 h-5" />
-                        <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-                    </button>
                     <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors">
                         <HelpCircle className="w-5 h-5" />
                     </button>
