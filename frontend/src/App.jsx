@@ -8,6 +8,8 @@ import Attendance from './pages/Attendance';
 
 import Settings from './pages/Settings';
 
+import EmployeeProfile from './pages/EmployeeProfile';
+
 function App() {
   return (
     <Router>
@@ -19,6 +21,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/employees" element={<EmployeeList />} />
+              <Route path="/employees/:id" element={<EmployeeProfile />} />
               <Route path="/add-employee" element={<AddEmployee />} />
               <Route path="/attendance" element={<Attendance />} />
               <Route path="/settings" element={<Settings />} />

@@ -151,13 +151,23 @@ const EmployeeList = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button
-                                                onClick={() => handleDelete(emp.id)}
-                                                className="text-gray-400 hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50"
-                                                title="Delete Employee"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => window.location.href = `/employees/${emp.id}`}
+                                                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors px-3 py-1.5 rounded-md hover:bg-blue-50 border border-transparent hover:border-blue-100 mr-2"
+                                                    title="View Profile"
+                                                >
+                                                    <Search size={16} />
+                                                    <span className="text-sm font-medium">View</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(emp.id)}
+                                                    className="text-gray-400 hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50"
+                                                    title="Delete Employee"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -215,8 +225,8 @@ const EmployeeList = () => {
                                         key={page}
                                         onClick={() => setCurrentPage(page)}
                                         className={`px-3 py-1 border rounded-md text-sm font-medium ${currentPage === page
-                                                ? 'bg-blue-600 text-white border-blue-600'
-                                                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                                             }`}
                                     >
                                         {page}
