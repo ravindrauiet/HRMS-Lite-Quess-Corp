@@ -7,28 +7,28 @@ const EmployeeProfile = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [employee, setEmployee] = useState(null);
+    const [attendance, setAttendance] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetchEmployeeDetails();
+        fetchData();
     }, [id]);
 
-    const fetchEmployeeDetails = async () => {
+    const fetchData = async () => {
         try {
-            // Ideally we fetch from /employees/:id, but for now we might just Mock it if backend doesn't support specifics
-            // or we use the basic info we can get.
-            // Let's try to get all and find, or if the user allowed backend mods previously, maybe GET /employees/:id works.
-            // But since "do not change backend" is checking now, we assume standard fields only.
+            setLoading(true);
+            const [empRes, attRes] = await Promise.all([
+                api.get('/employees/'),
+                api.get(`/attendance/${id}`)
+            ]);
 
-            const response = await api.get('/employees/');
-            const found = response.data.find(e => e.id === parseInt(id));
-
+            const found = empRes.data.find(e => e.id === parseInt(id));
             if (found) {
-                // Using real data from API. Fields not in DB will be undefined/null.
                 setEmployee(found);
             }
+            setAttendance(attRes.data);
         } catch (error) {
-            console.error("Error fetching details", error);
+            console.error("Error fetching data", error);
         } finally {
             setLoading(false);
         }
@@ -38,6 +38,12 @@ const EmployeeProfile = () => {
     if (!employee) return <div className="p-8 text-center text-red-500">Employee not found</div>;
 
     const getInitials = (name) => name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '??';
+
+    // Calculate Stats
+    const totalPresent = attendance.filter(a => a.status === 'Present').length;
+    const totalAbsent = attendance.filter(a => a.status === 'Absent').length;
+    const totalRecords = attendance.length;
+    const attendanceRate = totalRecords > 0 ? ((totalPresent / totalRecords) * 100).toFixed(1) : '0';
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -51,13 +57,7 @@ const EmployeeProfile = () => {
                     <span>Back to Directory</span>
                 </button>
                 <div className="flex gap-3">
-                    <button className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm">
-                        Edit Profile
-                    </button>
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2">
-                        <Download size={16} />
-                        Export History
-                    </button>
+                    {/* Buttons removed as per request */}
                 </div>
             </div>
 
@@ -74,17 +74,13 @@ const EmployeeProfile = () => {
                                 {employee.status || 'Active'}
                             </span>
                         </div>
-                        <p className="text-gray-500 text-lg">{employee.designation || 'N/A'} • {employee.department}</p>
+                        <p className="text-gray-500 text-lg">{employee.designation || 'Employee'} • {employee.department}</p>
                     </div>
 
                     <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-gray-600">
                         <div className="flex items-center gap-2">
                             <Briefcase size={16} className="text-gray-400" />
                             <span>ID: EMP-{String(employee.id).padStart(4, '0')}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <MapPin size={16} className="text-gray-400" />
-                            <span>{employee.location || 'N/A'}</span>
                         </div>
                     </div>
                 </div>
@@ -115,33 +111,7 @@ const EmployeeProfile = () => {
                                     <span>{employee.department}</span>
                                 </div>
                             </div>
-
-                            <div className="group">
-                                <label className="text-xs font-medium text-gray-400 uppercase tracking-wider block mb-1">Date Joined</label>
-                                <div className="flex items-center gap-2 text-gray-900">
-                                    <Calendar size={16} className="text-gray-400 group-hover:text-orange-500 transition-colors" />
-                                    <span>{employee.date_joined ? new Date(employee.date_joined).toLocaleDateString() : 'N/A'}</span>
-                                </div>
-                            </div>
-
-                            <div className="group">
-                                <label className="text-xs font-medium text-gray-400 uppercase tracking-wider block mb-1">Manager</label>
-                                <div className="flex items-center gap-3 mt-2">
-                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">
-                                        {getInitials(employee.manager_name || '??')}
-                                    </div>
-                                    <span className="text-sm font-medium text-gray-900">{employee.manager_name || 'N/A'}</span>
-                                </div>
-                            </div>
                         </div>
-                    </div>
-
-                    <div className="bg-blue-50/50 rounded-xl p-6 border border-blue-100">
-                        <h4 className="flex items-center gap-2 font-semibold text-blue-900 mb-2">
-                            Emergency Contact
-                        </h4>
-                        <p className="font-medium text-gray-900">Jane Doe (Spouse)</p>
-                        <p className="text-sm text-blue-600 mt-1 cursor-pointer hover:underline">+1 (555) 000-1234</p>
                     </div>
                 </div>
 
@@ -154,16 +124,16 @@ const EmployeeProfile = () => {
                                 <p className="text-xs text-gray-500 font-medium">Total Present</p>
                                 <CheckCircle size={16} className="text-green-500" />
                             </div>
-                            <p className="text-2xl font-bold text-gray-900">156 Days</p>
-                            <p className="text-xs text-gray-400 mt-1">Last 6 months</p>
+                            <p className="text-2xl font-bold text-gray-900">{totalPresent} Days</p>
+                            <p className="text-xs text-gray-400 mt-1">Overall</p>
                         </div>
                         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                             <div className="flex justify-between items-start mb-2">
                                 <p className="text-xs text-gray-500 font-medium">Total Absent</p>
                                 <XCircle size={16} className="text-red-500" />
                             </div>
-                            <p className="text-2xl font-bold text-gray-900">4 Days</p>
-                            <p className="text-xs text-gray-400 mt-1">Excludes holidays</p>
+                            <p className="text-2xl font-bold text-gray-900">{totalAbsent} Days</p>
+                            <p className="text-xs text-gray-400 mt-1">Overall</p>
                         </div>
                         <div className="bg-blue-600 p-5 rounded-xl shadow-sm shadow-blue-200 text-white">
                             <div className="flex justify-between items-start mb-2">
@@ -172,9 +142,9 @@ const EmployeeProfile = () => {
                                     <Clock size={12} className="text-white" />
                                 </div>
                             </div>
-                            <p className="text-2xl font-bold">97.5%</p>
+                            <p className="text-2xl font-bold">{attendanceRate}%</p>
                             <div className="w-full bg-blue-800/50 h-1.5 rounded-full mt-3 overflow-hidden">
-                                <div className="bg-white h-full rounded-full" style={{ width: '97.5%' }}></div>
+                                <div className="bg-white h-full rounded-full" style={{ width: `${attendanceRate}%` }}></div>
                             </div>
                         </div>
                     </div>
@@ -187,7 +157,7 @@ const EmployeeProfile = () => {
                                 Attendance History
                             </h3>
                             <button className="text-xs font-medium text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-50 transition-colors">
-                                October 2024
+                                All Records
                             </button>
                         </div>
                         <div className="overflow-x-auto">
@@ -202,22 +172,36 @@ const EmployeeProfile = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {[1, 2, 3, 4, 5].map((_, i) => (
-                                        <tr key={i} className="hover:bg-gray-50/50 transition-colors group">
-                                            <td className="px-6 py-4 font-medium text-gray-900">Oct {24 - i}, 2024</td>
-                                            <td className="px-6 py-4 text-gray-500">Regular (9AM-6PM)</td>
-                                            <td className="px-6 py-4 text-gray-500">08:55 AM</td>
-                                            <td className="px-6 py-4 text-gray-500">06:05 PM</td>
-                                            <td className="px-6 py-4 text-right">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${i === 2
-                                                    ? 'bg-red-100 text-red-700'
-                                                    : 'bg-green-100 text-green-700'
-                                                    }`}>
-                                                    {i === 2 ? 'Absent' : 'Present'}
-                                                </span>
+                                    {attendance.length > 0 ? (
+                                        attendance.slice().reverse().map((record, i) => (
+                                            <tr key={i} className="hover:bg-gray-50/50 transition-colors group">
+                                                <td className="px-6 py-4 font-medium text-gray-900">
+                                                    {new Date(record.date).toLocaleDateString('en-US', {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        year: 'numeric'
+                                                    })}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-500">Regular</td>
+                                                <td className="px-6 py-4 text-gray-500">N/A</td>
+                                                <td className="px-6 py-4 text-gray-500">N/A</td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${record.status === 'Absent'
+                                                        ? 'bg-red-100 text-red-700'
+                                                        : 'bg-green-100 text-green-700'
+                                                        }`}>
+                                                        {record.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="5" className="px-6 py-8 text-center text-gray-500 italic">
+                                                No attendance records found
                                             </td>
                                         </tr>
-                                    ))}
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -234,3 +218,4 @@ const EmployeeProfile = () => {
 };
 
 export default EmployeeProfile;
+

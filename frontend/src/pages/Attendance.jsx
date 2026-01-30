@@ -5,40 +5,105 @@ import api from '../api';
 const Attendance = () => {
     const [activeTab, setActiveTab] = useState('mark'); // 'mark' or 'history'
     const [employees, setEmployees] = useState([]);
+    const [allAttendance, setAllAttendance] = useState([]);
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [attendanceData, setAttendanceData] = useState({}); // { empId: { status: 'Present', note: '' } }
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [stats, setStats] = useState({
-        present: 0,
-        total: 0,
-        absenteeism: 2.8,
-        lastWeek: 92.4
+        yesterday: { present: 0, total: 0, percentage: 0 },
+        lastWeek: 0,
+        absenteeism: 0
     });
 
     useEffect(() => {
-        fetchEmployees();
+        const loadInitialData = async () => {
+            setIsLoading(true);
+            await Promise.all([fetchEmployees(), fetchAllAttendance()]);
+            setIsLoading(false);
+        };
+        loadInitialData();
     }, []);
 
+    useEffect(() => {
+        if (employees.length > 0) {
+            loadAttendanceForDate(date);
+        }
+    }, [date, employees, allAttendance]);
+
+    useEffect(() => {
+        if (allAttendance.length > 0 && employees.length > 0) {
+            calculateStats();
+        }
+    }, [allAttendance, employees]);
+
     const fetchEmployees = async () => {
-        setIsLoading(true);
         try {
             const response = await api.get('/employees/');
             setEmployees(response.data);
-
-            // Initialize attendance data
-            const initialData = {};
-            response.data.forEach(emp => {
-                initialData[emp.id] = { status: 'Present', note: '' };
-            });
-            setAttendanceData(initialData);
-
-            setStats(prev => ({ ...prev, total: response.data.length, present: response.data.length })); // Mock stats
+            return response.data;
         } catch (error) {
             console.error("Error fetching employees:", error);
-        } finally {
-            setIsLoading(false);
+            return [];
         }
+    };
+
+    const fetchAllAttendance = async () => {
+        try {
+            const response = await api.get('/attendance/');
+            setAllAttendance(response.data);
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching attendance history:", error);
+            return [];
+        }
+    };
+
+    const loadAttendanceForDate = (selectedDate) => {
+        const initialData = {};
+        employees.forEach(emp => {
+            const record = allAttendance.find(a => a.employee_id === emp.id && a.date === selectedDate);
+            initialData[emp.id] = {
+                status: record ? record.status : 'Present',
+                note: '', // Notes are not yet in DB schema
+                id: record ? record.id : null
+            };
+        });
+        setAttendanceData(initialData);
+    };
+
+    const calculateStats = () => {
+        const today = new Date();
+        const yesterdayDate = new Date(today);
+        yesterdayDate.setDate(today.getDate() - 1);
+        const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+
+        // Yesterday Stats
+        const yesterdayRecords = allAttendance.filter(a => a.date === yesterdayStr);
+        const yesterdayPresent = yesterdayRecords.filter(a => a.status === 'Present').length;
+        const totalEmployees = employees.length;
+
+        // Last Week Avg
+        const lastWeekStart = new Date(today);
+        lastWeekStart.setDate(today.getDate() - 7);
+        const lastWeekRecords = allAttendance.filter(a => new Date(a.date) >= lastWeekStart && new Date(a.date) < today);
+        const lastWeekPresent = lastWeekRecords.filter(a => a.status === 'Present').length;
+        const lastWeekDays = 7; // Assuming 7 days for simplicity, or count unique dates
+        const lastWeekAvg = lastWeekRecords.length > 0 ? (lastWeekPresent / lastWeekRecords.length) * 100 : 0;
+
+        // Absenteeism Rate (Overall Absent / Total Records)
+        const totalAbsent = allAttendance.filter(a => a.status === 'Absent').length;
+        const absenteeism = allAttendance.length > 0 ? (totalAbsent / allAttendance.length) * 100 : 0;
+
+        setStats({
+            yesterday: {
+                present: yesterdayPresent,
+                total: yesterdayRecords.length || totalEmployees,
+                percentage: yesterdayRecords.length > 0 ? (yesterdayPresent / yesterdayRecords.length) * 100 : 0
+            },
+            lastWeek: lastWeekAvg.toFixed(1),
+            absenteeism: absenteeism.toFixed(1)
+        });
     };
 
     const handleStatusChange = (empId, newStatus) => {
@@ -66,31 +131,25 @@ const Attendance = () => {
     const submitAttendance = async () => {
         if (!window.confirm(`Submit attendance for ${Object.keys(attendanceData).length} employees for ${date}?`)) return;
 
-        // In a real app, you might want to send this as a bulk payload.
-        // For now, we'll iterate (simplified).
-        let successCount = 0;
-        let diffCount = 0;
-
-        // Only sending data that changed or if we want to enforce all
-        // Ideally backend supports bulk insert.
-        // We will try to loop for now as per previous logic, but maybe just one by one is slow.
-        // Let's just alert for this UI demo if backend interaction is complex.
-
+        setIsLoading(true);
         try {
             const promises = Object.keys(attendanceData).map(async (empId) => {
+                const data = attendanceData[empId];
                 return api.post('/attendance/', {
-                    employee_id: empId,
+                    employee_id: parseInt(empId),
                     date: date,
-                    status: attendanceData[empId].status,
-                    // note: attendanceData[empId].note // Backend might need note field update
+                    status: data.status
                 });
             });
 
             await Promise.all(promises);
             alert("Attendance submitted successfully!");
+            await fetchAllAttendance(); // Refresh history and stats
         } catch (error) {
             console.error("Error submitting attendance", error);
             alert("Some records failed to update.");
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -110,8 +169,18 @@ const Attendance = () => {
         emp.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const getFilteredHistory = () => {
+        return allAttendance
+            .filter(a => {
+                const emp = employees.find(e => e.id === a.employee_id);
+                return emp?.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
+            })
+            .slice()
+            .reverse();
+    };
+
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold text-gray-900">Attendance Management</h1>
@@ -145,10 +214,11 @@ const Attendance = () => {
                         </button>
                         <button
                             onClick={submitAttendance}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+                            disabled={isLoading}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
                         >
                             <CheckCircle size={16} />
-                            Submit Attendance
+                            {isLoading ? 'Submitting...' : 'Submit Attendance'}
                         </button>
                     </div>
                 )}
@@ -157,15 +227,17 @@ const Attendance = () => {
             {/* Filter and Date Bar */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input
-                            type="date"
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                        />
-                    </div>
+                    {activeTab === 'mark' && (
+                        <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                            <input
+                                type="date"
+                                value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                                className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-3 w-full md:w-auto">
@@ -182,26 +254,33 @@ const Attendance = () => {
                 </div>
             </div>
 
-            {/* Employee List Table */}
-            {activeTab === 'mark' && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50/50">
-                                <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
-                                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-64">Status</th>
+            {/* Table */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50/50">
+                            <tr>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
+                                {activeTab === 'history' && (
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                )}
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
+                                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-64">Status</th>
+                                {activeTab === 'mark' && (
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Note</th>
-                                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {isLoading ? (
-                                    <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
-                                ) : filteredEmployees.length > 0 ? (
-                                    filteredEmployees.map((emp, index) => (
-                                        <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors">
+                                )}
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {isLoading ? (
+                                <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-500">Loading...</td></tr>
+                            ) : (activeTab === 'mark' ? filteredEmployees : getFilteredHistory()).length > 0 ? (
+                                (activeTab === 'mark' ? filteredEmployees : getFilteredHistory()).map((item, index) => {
+                                    const emp = activeTab === 'mark' ? item : employees.find(e => e.id === item.employee_id);
+                                    if (!emp) return null;
+
+                                    return (
+                                        <tr key={activeTab === 'mark' ? emp.id : item.id} className="hover:bg-gray-50/50 transition-colors">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ${getAvatarColor(index)}`}>
@@ -213,51 +292,63 @@ const Attendance = () => {
                                                     </div>
                                                 </div>
                                             </td>
+                                            {activeTab === 'history' && (
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                    {new Date(item.date).toLocaleDateString()}
+                                                </td>
+                                            )}
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                 {emp.department || 'General'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex bg-gray-100 p-1 rounded-lg justify-center">
-                                                    {['Present', 'Absent', 'Leave'].map(statusOption => (
-                                                        <button
-                                                            key={statusOption}
-                                                            onClick={() => handleStatusChange(emp.id, statusOption)}
-                                                            className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${attendanceData[emp.id]?.status === statusOption
+                                                {activeTab === 'mark' ? (
+                                                    <div className="flex bg-gray-100 p-1 rounded-lg justify-center">
+                                                        {['Present', 'Absent'].map(statusOption => (
+                                                            <button
+                                                                key={statusOption}
+                                                                onClick={() => handleStatusChange(emp.id, statusOption)}
+                                                                className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${attendanceData[emp.id]?.status === statusOption
                                                                     ? statusOption === 'Present' ? 'bg-white text-green-700 shadow-sm'
-                                                                        : statusOption === 'Absent' ? 'bg-white text-red-700 shadow-sm'
-                                                                            : 'bg-white text-orange-700 shadow-sm'
+                                                                        : 'bg-white text-red-700 shadow-sm'
                                                                     : 'text-gray-500 hover:text-gray-700'
-                                                                }`}
-                                                        >
-                                                            {statusOption}
-                                                        </button>
-                                                    ))}
-                                                </div>
+                                                                    }`}
+                                                            >
+                                                                {statusOption}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center">
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${item.status === 'Absent'
+                                                            ? 'bg-red-100 text-red-700'
+                                                            : 'bg-green-100 text-green-700'
+                                                            }`}>
+                                                            {item.status}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Add note..."
-                                                    value={attendanceData[emp.id]?.note || ''}
-                                                    onChange={(e) => handleNoteChange(emp.id, e.target.value)}
-                                                    className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-sm py-1 transition-colors"
-                                                />
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <button className="text-gray-400 hover:text-gray-600">
-                                                    <MoreHorizontal size={18} />
-                                                </button>
-                                            </td>
+                                            {activeTab === 'mark' && (
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Add note..."
+                                                        value={attendanceData[emp.id]?.note || ''}
+                                                        onChange={(e) => handleNoteChange(emp.id, e.target.value)}
+                                                        className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none text-sm py-1 transition-colors"
+                                                    />
+                                                </td>
+                                            )}
                                         </tr>
-                                    ))
-                                ) : (
-                                    <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">No employees found</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                    );
+                                })
+                            ) : (
+                                <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-500">No records found</td></tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
-            )}
+            </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -265,8 +356,10 @@ const Attendance = () => {
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Yesterday</p>
                     <div className="flex items-center justify-between mt-2">
                         <div>
-                            <p className="text-2xl font-bold text-gray-900">{stats.present}/{stats.total}</p>
-                            <p className="text-xs text-green-600 mt-1">Present (95.1%)</p>
+                            <p className="text-2xl font-bold text-gray-900">{stats.yesterday.present}/{stats.yesterday.total}</p>
+                            <p className={`text-xs mt-1 ${stats.yesterday.percentage >= 90 ? 'text-green-600' : 'text-orange-600'}`}>
+                                Present ({stats.yesterday.percentage.toFixed(1)}%)
+                            </p>
                         </div>
                         <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
                             <Calendar size={24} />
@@ -279,7 +372,7 @@ const Attendance = () => {
                     <div className="flex items-center justify-between mt-2">
                         <div>
                             <p className="text-2xl font-bold text-gray-900">{stats.lastWeek}%</p>
-                            <p className="text-xs text-orange-600 mt-1">-1.2% from previous</p>
+                            <p className="text-xs text-gray-500 mt-1">Based on records</p>
                         </div>
                         <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
                             <Clock size={24} />
@@ -292,7 +385,7 @@ const Attendance = () => {
                     <div className="flex items-center justify-between mt-2">
                         <div>
                             <p className="text-2xl font-bold text-gray-900">{stats.absenteeism}%</p>
-                            <p className="text-xs text-green-600 mt-1">Below industry avg.</p>
+                            <p className="text-xs text-green-600 mt-1">Overall</p>
                         </div>
                         <div className="p-3 bg-green-50 text-green-600 rounded-lg">
                             <CheckCircle size={24} />

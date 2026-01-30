@@ -10,8 +10,8 @@ const Sidebar = () => {
                     <Building2 className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900 leading-none">HRMS Lite</h1>
-                    <span className="text-xs text-gray-500 font-medium">Admin Panel</span>
+                    <h1 className="text-xl font-bold text-gray-900 leading-none">HRMS</h1>
+                    <span className="text-xs text-gray-500 font-medium">HR Panel</span>
                 </div>
             </div>
 
@@ -75,7 +75,7 @@ const Sidebar = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">Ravindra Jha</p>
-                        <p className="text-xs text-gray-500 truncate">System Admin</p>
+                        <p className="text-xs text-gray-500 truncate">System HR</p>
                     </div>
                 </div>
             </div>
